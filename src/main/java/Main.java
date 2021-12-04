@@ -106,7 +106,9 @@ public class Main {
                 System.out.println("Link found for "+carData.name+": "+carName);
 
                 // ZENDIUM
-
+                WebElement batteryInfoContainer = driver.findElement(By.cssSelector("#article-block-10 > div:nth-child(1) > div:nth-child(1) > div:nth-child(1)"));
+                String text = batteryInfoContainer.getText();
+                System.out.println(text);
             }
         } finally {
             driver.quit();
