@@ -11,17 +11,40 @@ import java.text.Normalizer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Main {
 
     static class CarData {
         public String name;
         public int count;
-        public int capacity;
-        public int range;
+        public double capacity;
+        public double drivingEfficiency;
         public ArrayList<String> supportedChargers;
         public int maxChargingPower;
         public String link;
+    }
+
+    public static double findDoubleAfter(String regex, String text) {
+        Matcher matcher = Pattern.compile(regex).matcher(text);
+
+        if (!matcher.find()) {
+            return -1;
+        }
+        System.out.println(" - Match Found");
+        int startIndex = matcher.end();
+        String[] values = text.substring(startIndex).split(" |\n");
+        System.out.println(" - Value 1: " + values[0]);
+        if (values[0].equals("N/A"))
+            return -1;
+        System.out.println(" - Is not N/A");
+        double value = Double.parseDouble(values[0]);
+        if (values[1].equals("-")) {
+            value = (Double.parseDouble(values[0]) + Double.parseDouble(values[2])) / 2;
+        }
+        System.out.println(" - Val = " + value);
+        return value;
     }
 
     public static void main(String[] args) throws Exception {
@@ -109,6 +132,21 @@ public class Main {
                 WebElement batteryInfoContainer = driver.findElement(By.cssSelector("#article-block-10 > div:nth-child(1) > div:nth-child(1) > div:nth-child(1)"));
                 String text = batteryInfoContainer.getText();
                 System.out.println(text);
+                carData.capacity = findDoubleAfter("Battery size ", text);
+                double battEff = findDoubleAfter("efficiency \\(NEDC\\) ", text);
+                if (battEff < 0) {
+                    battEff = findDoubleAfter("efficiency \\(WLTP\\) ", text);
+                    if (battEff < 0) {
+                        battEff = findDoubleAfter("efficiency \\(Pod Point estimate\\) ", text);
+                    }
+                }
+                if (battEff < 0) {
+                    System.out.println("No driving efficiency found for " + carData.name);
+                    carData.drivingEfficiency = -1;
+                } else {
+                    carData.drivingEfficiency = battEff / 1.609344 / 1000 * 100; //  Wh/mile  to  kWh/100km  conversion
+                }
+                System.out.println();
             }
         } finally {
             driver.quit();
@@ -116,7 +154,7 @@ public class Main {
 
         FileWriter myWriter = new FileWriter("CarType.java");
         for (CarData car: cars) {
-            myWriter.write(car.name + ";" + car.count + "\n");
+            myWriter.write(String.format("%s(%d,%.1f,%d,%.1f)," + ((car.link == null)?"// No link found":"") + "\n", car.name, car.count, car.capacity, car.maxChargingPower, car.drivingEfficiency));
         }
         myWriter.close();
         System.out.println("Total: " + cars.size());
