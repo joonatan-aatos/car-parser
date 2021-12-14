@@ -22,7 +22,8 @@ public class Main {
         public double capacity;
         public double drivingEfficiency;
         public ArrayList<String> supportedChargers;
-        public int maxChargingPower;
+        public double maxChargingPowerAC;
+        public double maxChargingPowerDC;
         public String link;
     }
 
@@ -32,19 +33,26 @@ public class Main {
         if (!matcher.find()) {
             return -1;
         }
-        System.out.println(" - Match Found");
         int startIndex = matcher.end();
         String[] values = text.substring(startIndex).split(" |\n");
-        System.out.println(" - Value 1: " + values[0]);
         if (values[0].equals("N/A"))
             return -1;
-        System.out.println(" - Is not N/A");
         double value = Double.parseDouble(values[0]);
         if (values[1].equals("-")) {
             value = (Double.parseDouble(values[0]) + Double.parseDouble(values[2])) / 2;
         }
-        System.out.println(" - Val = " + value);
         return value;
+    }
+
+    public static String formatSupportedChargers(ArrayList<String> chargers) {
+        if (chargers == null)
+            return "";
+        StringBuilder s = new StringBuilder();
+        for (String charger : chargers) {
+            s.append("\"").append(charger).append("\", ");
+        }
+        s.delete(s.length() - 2, s.length());
+        return s.toString();
     }
 
     public static void main(String[] args) throws Exception {
@@ -128,25 +136,67 @@ public class Main {
                 String carName = carNameContainer.findElement(By.cssSelector("h1")).getText();
                 System.out.println("Link found for "+carData.name+": "+carName);
 
-                // ZENDIUM
                 WebElement batteryInfoContainer = driver.findElement(By.cssSelector("#article-block-10 > div:nth-child(1) > div:nth-child(1) > div:nth-child(1)"));
-                String text = batteryInfoContainer.getText();
-                System.out.println(text);
-                carData.capacity = findDoubleAfter("Battery size ", text);
-                double battEff = findDoubleAfter("efficiency \\(NEDC\\) ", text);
+                String batteryText = batteryInfoContainer.getText();
+                carData.capacity = findDoubleAfter("Battery size ", batteryText);
+                double battEff = findDoubleAfter("efficiency \\(NEDC\\) ", batteryText);
                 if (battEff < 0) {
-                    battEff = findDoubleAfter("efficiency \\(WLTP\\) ", text);
-                    if (battEff < 0) {
-                        battEff = findDoubleAfter("efficiency \\(Pod Point estimate\\) ", text);
-                    }
+                    battEff = findDoubleAfter("efficiency \\(WLTP\\) ", batteryText);
+                }
+                if (battEff < 0) {
+                    battEff = findDoubleAfter("efficiency \\(Pod Point estimate\\) ", batteryText);
                 }
                 if (battEff < 0) {
                     System.out.println("No driving efficiency found for " + carData.name);
                     carData.drivingEfficiency = -1;
                 } else {
-                    carData.drivingEfficiency = battEff / 1.609344 / 1000 * 100; //  Wh/mile  to  kWh/100km  conversion
+                    carData.drivingEfficiency = battEff / 16.09344; //  Wh/mile  to  kWh/100km  conversion
+                }
+
+                // Chargers
+                carData.maxChargingPowerAC = 0;
+                carData.maxChargingPowerDC = 0;
+                carData.supportedChargers = new ArrayList<>();
+                WebElement chargerInfoContainer = driver.findElement(By.cssSelector("#article-block-4 > div:nth-child(1) > div:nth-child(1) > div:nth-child(1) > table:nth-child(3) > tbody:nth-child(1) > tr:nth-child(1)"));
+                String chargerText = chargerInfoContainer.getText();
+                chargerText = chargerText.replaceAll("\n\n", "");
+                System.out.println(chargerText);
+                String[] chargerTextLines = chargerText.split("\n");
+                for (String chargerLine : chargerTextLines) {
+                    if (chargerLine.contains("Max AC 3-phase rate: ")) {
+                        if (chargerLine.charAt(chargerLine.length()-1) == '*') {
+                            chargerLine = chargerLine.substring(0, chargerLine.length()-1);
+                        }
+                        chargerLine = chargerLine.replaceAll("Max AC 3-phase rate: ", "").replaceAll("kW", "");
+                        carData.maxChargingPowerAC = Double.parseDouble(chargerLine);
+                    }
+                    else if (chargerLine.contains("Max DC rate: ")) {
+                        chargerLine = chargerLine.replaceAll("Max DC rate: ", "").replaceAll("Rapid: CHAdeMO", "").replaceAll("kW", "");
+                        if (chargerLine.contains("-")) {
+                            String[] values = chargerLine.split(" - ");
+                            if (values.length == 1)
+                                values = chargerLine.split("-");
+                            carData.maxChargingPowerDC = (Double.parseDouble(values[0]) + Double.parseDouble(values[1])) / 2;
+                        }
+                        else {
+                            carData.maxChargingPowerDC = Double.parseDouble(chargerLine);
+                        }
+                    }
+                    if (chargerLine.contains("Slow / Fast: Type 2")) {
+                        carData.supportedChargers.add("Type2");
+                    }
+                    else if (chargerLine.contains("Rapid: CHAdeMO")) {
+                        carData.supportedChargers.add("CHAdeMO");
+                    }
+                    else if (chargerLine.contains("Rapid: CCS Supercharger") || chargerLine.contains("Rapid: Supercharger")) {
+                        carData.supportedChargers.add("Tesla");
+                    }
+                    else if (chargerLine.contains("Rapid: CCS")) {
+                        carData.supportedChargers.add("CCS");
+                    }
                 }
                 System.out.println();
+
             }
         } finally {
             driver.quit();
@@ -154,7 +204,19 @@ public class Main {
 
         FileWriter myWriter = new FileWriter("CarType.java");
         for (CarData car: cars) {
-            myWriter.write(String.format("%s(%d,%.1f,%d,%.1f)," + ((car.link == null)?"// No link found":"") + "\n", car.name, car.count, car.capacity, car.maxChargingPower, car.drivingEfficiency));
+            myWriter.write(
+                    String.format(
+                            "%s(%d, %.1f, %.1f, %.1f, %.1f, Arrays.asList(%s)), %s\n",
+                            car.name,
+                            car.count,
+                            car.capacity,
+                            car.drivingEfficiency,
+                            car.maxChargingPowerAC,
+                            car.maxChargingPowerDC,
+                            formatSupportedChargers(car.supportedChargers),
+                            (car.link == null)?"// No link found":""
+                    )
+            );
         }
         myWriter.close();
         System.out.println("Total: " + cars.size());
