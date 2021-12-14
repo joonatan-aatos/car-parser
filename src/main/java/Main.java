@@ -182,7 +182,7 @@ public class Main {
                             carData.maxChargingPowerDC = Double.parseDouble(chargerLine);
                         }
                     }
-                    if (chargerLine.contains("Slow / Fast: Type 2")) {
+                    if (chargerLine.contains("Slow / Fast: Type 2") || chargerLine.contains("Slow / Fast: Type 1")) {
                         carData.supportedChargers.add("Type2");
                     }
                     else if (chargerLine.contains("Rapid: CHAdeMO")) {
@@ -206,7 +206,7 @@ public class Main {
         for (CarData car: cars) {
             myWriter.write(
                     String.format(
-                            "%s(%d, %.1f, %.1f, %.1f, %.1f, Arrays.asList(%s)), %s\n",
+                            "%s(%d, %.1f, %.1f, %.1f, %.1f, new ArrayList<String>(Arrays.asList(%s))), %s\n",
                             car.name,
                             car.count,
                             car.capacity,
