@@ -82,9 +82,11 @@ public class Main {
                             data[0].replaceAll(String.valueOf((char) 160), "") + "_" +
                             data[1].replaceAll(String.valueOf((char) 160), "");
                     name = name.replaceAll("-", "_").replaceAll(" ", "_").replaceAll("!", "1").replaceAll("BMWI", "BMW").replaceAll("BENZ_", "").replaceAll("TESLAMOTORS", "TESLA").replaceAll("MODEL", "MODEL_").replaceAll("EQC400", "EQC").replaceAll("PEUGEOT_", "PEUGEOT_E_").replaceAll("VOLKSWAGEN_", "VOLKSWAGEN_E_");
-                    if (name.equals("VOLKSWAGEN_E_ID.3")) name = "VOLKSWAGEN_ID.3";
+                    if (name.equals("VOLKSWAGEN_E_ID.3")) name = "VOLKSWAGEN_ID_3";
                     if (name.equals("PEUGEOT_E_ION")) name = "PEUGEOT_ION";
                     if (name.equals("FIAT_500")) name = "FIAT_500E";
+                    if (name.equals("MERCEDES_V_KLASSE")) name = "MERCEDES_EQV";
+                    if (name.equals("MINI_COOPERSE")) name = "MINI_COOPER_SE";
                     boolean carExists = false;
                     for (CarData car : cars) {
                         if (Objects.equals(car.name, name)) {
@@ -112,8 +114,9 @@ public class Main {
             List<WebElement> elements = driver.findElements(By.cssSelector("div.selectable-vehicle-card"));
             for (WebElement element : elements) {
                 String[] elementData = element.getText().split("\n");
-                String carName = elementData[0].replaceAll("-", "_").replaceAll(" ", "_").replaceAll("!", "1").replaceAll("_E_", "_").toUpperCase();
+                String carName = elementData[0].replaceAll("-", "_").replaceAll(" ", "_").replaceAll("!", "1").replaceAll("_E_", "_").replaceAll("\\.", "_").toUpperCase();
                 carName = Normalizer.normalize(carName, Normalizer.Form.NFKD).replaceAll("[^\\p{ASCII}]", "");
+                if (carName.equals("MINI_ELECTRIC_(2020)")) carName = "MINI_COOPER_SE";
                 for (CarData carData : cars) {
                     if (carData.link != null)
                         continue;
